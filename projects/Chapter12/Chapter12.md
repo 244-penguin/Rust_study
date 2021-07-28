@@ -138,7 +138,129 @@ To tell your name the livelong day
 To an admiring bog!
 ```
 
+- 現状のコードの問題点
+    - main関数が複数の機能を持ってしまっている
+    - エラー処理がきちんと書かれていない
+- 次はリファクタリング！
+
 ## 12.3 Refactoring to Improve Modularity and Error Handling
+- 現状のプログラムの4つの問題
+    1. main関数に複数の機能がある
+    2. 
+    3. ファイルを開くときのエラーメッセージが適切でない
+        - ファイルが開けなかった理由がわからない
+    4. 
+
+#### Separation of Concerns for Binary Projects
+- main関数の機能を分割させる手順
+    1. プログラムをmain.rsとlib.rsに分け、ロジックをlib.rsに移動
+        - main.rsは極力lib.rsに書かれたロジックを呼び出すだけにしたい
+        - コマンドライン引数の解析ロジックが小規模な限り、main.rsに置いても良い
+    2. コマンドライン引数の解析ロジックが複雑化してきたら、main.rsから抽出してlib.rsに移動
+
+- まず，main.rsの中でmain関数からロジックを分離させる
+    - 引数を取得して，`query`と`filename`を抽出する部分(下のコードの※1，2の部分)
+    ```rs
+    // src/main.rs
+
+    // --snip--
+    fn main() {
+        let args: Vec<String> = env::args().collect();
+
+        let query = &args[1];    // ※1
+        let filename = &args[2]; // ※2 
+
+    // --snip--
+    }
+    ```
+    - 変更後のコードは以下
+    ```rs
+    // src/main.rs
+    fn main() {
+        let args: Vec<String> = env::args().collect();
+
+        let config = Config::new(&args);
+
+        // --snip--
+    }
+
+    struct Config {
+        query: String,
+        filename: String,
+    }
+
+    impl Config {
+        fn new(args: &[String]) -> Config {
+            let query = args[1].clone();
+            let filename = args[2].clone();
+
+            Config { query, filename }
+        }
+    }
+    ```
+    - ポイント
+        - `query`と`filename`を`Config`構造体にまとめる
+        - 変数に値を入れる処理は構造体のコンストラクタにさせる
+        - 構造体に渡すデータは`clone`メソッドでデータのコピーを生成している
+
+#### Fixing the Error Handling
+- 引数の数が2より少ないとき，args[2]にアクセスしようとすると以下のようなエラーが起こる
+```
+thread 'main' panicked at 'index out of bounds: the len is 1 but the index is 1'
+```
+- しかし，プログラマではない人が見ても意味がわかりにくいので，わかりやすいメッセージを出すようにする
+    - メッセージを"not enough arguments"にする
+    - `panic!`を使うといらない情報（デバッグのための情報）まで与えてしまうので，使わないようにする
+        - `Config`の`new`からは，`Result`を使って，成功時には`Config`インスタンス，エラー時にはエラーメッセージを返すようにして，main関数側でエラーが出たらエラーメッセージを表示してプログラムを終了する
+        ```rs
+        // src/main.rs
+        //--snip--
+        use std::process;
+
+        fn main() {
+            let args: Vec<String> = env::args().collect();
+
+            let config = Config::new(&args).unwrap_or_else(|err| {
+                // 引数解析時に問題
+                println!("Problem parsing arguments: {}", err);
+                process::exit(1);
+            });
+            //--snip--
+        }
+        //--snip--
+
+        impl Config {
+            fn new(args: &[String]) -> Result<Config, &'static str> {
+                if args.len() < 3 {
+                    return Err("not enough arguments");
+                }
+
+                let query = args[1].clone();
+                let filename = args[2].clone();
+
+                Ok(Config { query, filename })
+            }
+        }
+        ```
+        - ポイント
+            - `Config`
+                - コンストラクタは単に`Config`型を返すのではなく，成功時に`Config`型を，エラー時にエラーメッセージ（`&'static str`）を返す
+            - main関数
+                - `Config`のコンストラクタ呼び出し時に`unwrap_or_else`メソッドを使用
+                    - `Resutl<T, E>`を受けとって，OkならOk時の値を返し，エラー時は設定した動作をさせることができる
+                    - err変数で，`Resutl<T, E>`から受け取ったエラーメッセージを使用することもできる
+        ```
+        $ cargo run
+        Compiling minigrep v0.1.0 (/home/mizouchi/Rust_study/projects/Chapter12/minigrep)
+        --- 略 ---
+            Finished dev [unoptimized + debuginfo] target(s) in 0.45s
+            Running `target/debug/minigrep`
+        Problem parsing arguments: not enough arguments
+        ```
+        - エラーメッセージがスッキリする
+
+#### Extracting Logic from main
+
 
 ## 12.4 Developing the Library’s Functionality with Test-Driven Development
 
