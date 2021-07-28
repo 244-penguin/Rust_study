@@ -260,6 +260,87 @@ thread 'main' panicked at 'index out of bounds: the len is 1 but the index is 1'
         - エラーメッセージがスッキリする
 
 #### Extracting Logic from main
+- ファイルのオープンやその後の処理の部分をrun関数に抽出する
+    - run関数内で起こったエラーはmain関数に渡して処理してもらう
+    ```rs
+    use std::error::Error;
+
+    // --snip--
+    fn main() {
+        // --snip--
+
+        println!("Searching for {}", config.query);
+        println!("In file {}", config.filename);
+
+        if let Err(e) = run(config) {
+            println!("Application error: {}", e);
+
+            process::exit(1);
+        }
+    }
+
+    fn run(config: Config) -> Result<(), Box<Error>> {
+        let mut f = File::open(config.filename)?;
+
+        let mut contents = String::new();
+        f.read_to_string(&mut contents)?;
+
+        println!("With text:\n{}", contents);
+
+        Ok(())
+    }
+    ```
+    - ポイント
+        - run関数
+            - ファイルをオープンした時に，`except`ではなく，`?`によってエラー値を返す
+            - 関数の返り値を`Result<(), Box<Error>>`にすることで，呼び出し元のmain関数でエラーの処理ができるようにした
+                - `Box<Error>`はErrorトレイトを実装する型を返す
+                - 戻り値の型を具体的に指定しなくてよくなり，異なる型のエラー値を返すことができる
+            - `Ok(())`で戻り値を書いているが，具体的な値は返さない
+                - runを副作用（エラー処理？）のためだけに呼び出していると示す慣習的な方法
+        - main関数
+            - `if let`でrunの値を見て，`Err`だったらプロセス終了処理（`process::exit(1)`）を呼び出す
+            - `unwrap_or_else`を使わないのは，成功時の値の処理が必要ないため
+
+#### Splitting Code into a Library Crate
+- `src/lib.rs`にmain関数以外を移動
+```rs
+// src/lib.rs
+use std::error::Error;
+use std::fs::File;
+use std::io::prelude::*;
+
+pub struct Config {
+    pub query: String,
+    pub filename: String,
+}
+
+impl Config {
+    pub fn new(args: &[String]) -> Result<Config, &'static str> {
+        // --snip--
+    }
+}
+
+pub fn run(config: Config) -> Result<(), Box<Error>> {
+    // --snip--
+}
+```
+```rs 
+extern crate minigrep;
+
+use std::env;
+use std::process;
+
+use minigrep::Config;
+
+fn main() {
+    // --snip--
+    if let Err(e) = minigrep::run(config) {
+        // --snip--
+    }
+}
+```
+- ライブラリクレートをバイナリクレートに持ってくるため，`extern crate minigrep`で指定
 
 
 ## 12.4 Developing the Library’s Functionality with Test-Driven Development
