@@ -326,6 +326,7 @@ pub fn run(config: Config) -> Result<(), Box<Error>> {
 }
 ```
 ```rs 
+// src/main.rs
 extern crate minigrep;
 
 use std::env;
@@ -342,8 +343,147 @@ fn main() {
 ```
 - ライブラリクレートをバイナリクレートに持ってくるため，`extern crate minigrep`で指定
 
-
 ## 12.4 Developing the Library’s Functionality with Test-Driven Development
+- テスト駆動開発(TDD)過程を活用してminigrepプログラムに検索ロジックを追加
+    - TDDの手順
+        1. 失敗するテストを書き、走らせて想定通りの理由で失敗することを確かめる
+        2. 十分な量のコードを書くか変更して新しいテストを通過するようにする
+        3. 追加または変更したばかりのコードをリファクタリングし、テストが通り続けることを確認する
+        4. 手順1から繰り返す
+
+#### Writing a Failing Test
+- `src/lib.rs`にテスト関数のあるtestモジュールを追加
+```rs
+// src/lib.rs
+
+#[cfg(test)]
+mod test {
+    use super::*;
+
+    #[test]
+    fn one_result() {
+        let query = "duct";
+        // Rustは
+        // 安全で速く生産性も高い。
+        // 3つ選んで。
+        let contents = "\
+Rust:
+safe, fast, productive.
+Pick three.";
+
+        assert_eq!(
+            vec!["safe, fast, productive."],
+            search(query, contents)
+        );
+    }
+}
+```
+- search関数を検証するためのテスト
+    - search関数: 文字列から引数で指定した文字列を検索し，マッチした行を返す関数
+    - `contents`の中から「duct」という文字列を検索して，正解の「safe, fast, productive.」を返すか検証
+- 必ずテストを失敗するsearch関数
+```rs
+// src/lib.rs
+pub fn search<'a>(query: &str, contents: &'a str) -> Vec<&'a str> {
+    vec![]
+}
+```
+- 空のベクタを返すのでテストが必ず失敗する
+- searchの結果として返すベクタは引数の`contents`の一部になるので，ライフタイム注釈``a`をつけて同じライフタイムであると明示しないとコンパイルエラーが出る
+
+- テストを実行するとエラーが出る
+```
+$ cargo test
+-- 中略 -- 
+running 1 test
+test test::one_result ... FAILED
+
+failures:
+
+---- test::one_result stdout ----
+thread 'test::one_result' panicked at 'assertion failed: `(left == right)`
+  left: `["safe, fast, productive."]`,
+ right: `[]`', src/lib.rs:54:9
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+
+failures:
+    test::one_result
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+error: test failed, to rerun pass '--lib'
+```
+
+#### Writing Code to Pass the Test
+- search関数がテストを通るように，必要な機能を実装する
+```rs
+// src/lib.rs
+pub fn search<'a>(query: &str, contents: &'a str) -> Vec<&'a str> {
+    let mut results = Vec::new();
+
+    for line in contents.lines() {
+        if line.contains(query) {
+            results.push(line);
+        }
+    }
+
+    results
+}
+```
+- ポイント
+    - `lines`メソッドとforループを組み合わせて，`contents`の各行に対して処理を行う
+        - `lines`メソッドはイテレータを返す
+    - 文字列には`contains`メソッドがあり，その文字列が引数の文字列を含むか検証できる
+    - 引数の文字列が含まれていたら，行をベクタの`push`メソッドで`results`ベクタに保存
+        - pushって，参照を渡すんだっけ？pushされた元の所有権はどうなるんだろう
+
+- ここまで書いたらテストが通るようになっている
+```
+$ cargo test
+running 1 test
+test test::one_result ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running unittests (target/debug/deps/minigrep-6578a27bf4aad361)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+   Doc-tests minigrep
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+```
+
+#### Using the search Function in the run Function
+- 作ったsearch関数をrun関数から呼び出す
+```rs
+// src/lib.rs
+pub fn run(config: Config) -> Result<(), Box<Error>> {
+    let mut f = File::open(config.filename)?;
+
+    let mut contents = String::new();
+    f.read_to_string(&mut contents)?;
+
+    for line in search(&config.query, &contents) {
+        println!("{}", line);
+    }
+
+    Ok(())
+}
+```
+- プログラム全体が動くようになる
+```
+$ cargo run frog poem.txt
+   Compiling minigrep v0.1.0 (/home/mizouchi/GitRepositories/Rust_study/projects/Chapter12/minigrep)
+    Finished dev [unoptimized + debuginfo] target(s) in 0.35s
+     Running `target/debug/minigrep frog poem.txt`
+How public, like a frog
+```
 
 ## 12.5 Working with Environment Variables
 

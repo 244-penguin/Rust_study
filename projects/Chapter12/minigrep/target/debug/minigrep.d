@@ -1,1 +1,1 @@
-/home/mizouchi/Rust_study/projects/Chapter12/minigrep/target/debug/minigrep: /home/mizouchi/Rust_study/projects/Chapter12/minigrep/src/main.rs
+/home/mizouchi/GitRepositories/Rust_study/projects/Chapter12/minigrep/target/debug/minigrep: /home/mizouchi/GitRepositories/Rust_study/projects/Chapter12/minigrep/src/lib.rs /home/mizouchi/GitRepositories/Rust_study/projects/Chapter12/minigrep/src/main.rs
