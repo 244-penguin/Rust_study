@@ -1,17 +1,17 @@
 # Chapter12: An I/O Project: Building a Command Line Program
-- これまで学んできた知識を用いてRustによる`grep`コマンドを作成
-    - `grep`コマンドの概要[TODO]
+- これまで学んできた知識を用いてRustによる`grep`コマンド（`minigrep`）を作成
+    - `minigrep`コマンドの概要
         - 指定したファイルから文字列を検索
         - エラーの出力
-    - これまで学んできた知識[TODO]
+    - これまで学んできた知識
         - コードの体系化（7章）
         - ベクタと文字列（8章）
         - エラー処理（9章）
-        - 適切な箇所でトレイととライフタイムを使用（10章）
+        - 適切な箇所でトレイトとライフタイムを使用（10章）
         - テストの記述（11章）
 
 ## 12.1 Accepting Command Line Arguments
-- `grep`コマンドを作るには，引数としてファイル名を指定できるようにする必要がある
+- `minigrep`コマンドを作るには，引数としてファイル名を指定できるようにする必要がある
 - とりあえず以下のように引数を受け取ってRustのプログラムを動かせるようにしたい
 ```
 $ cargo run searchstring example-filename.txt
@@ -146,10 +146,10 @@ To an admiring bog!
 ## 12.3 Refactoring to Improve Modularity and Error Handling
 - 現状のプログラムの4つの問題
     1. main関数に複数の機能がある
-    2. 
+    2. 変数の使用目的が明確でない
     3. ファイルを開くときのエラーメッセージが適切でない
         - ファイルが開けなかった理由がわからない
-    4. 
+    4. エラー処理のコードが分散している
 
 #### Separation of Concerns for Binary Projects
 - main関数の機能を分割させる手順
