@@ -363,9 +363,6 @@ mod test {
     #[test]
     fn one_result() {
         let query = "duct";
-        // Rustは
-        // 安全で速く生産性も高い。
-        // 3つ選んで。
         let contents = "\
 Rust:
 safe, fast, productive.
@@ -486,7 +483,196 @@ How public, like a frog
 ```
 
 ## 12.5 Working with Environment Variables
+- 検索時に大文字・小文字を無視するオプションを追加
+    - 環境変数で指定できるようにして，ターミナルセッション中に設定が保持されるようにする
+
+#### Writing a Failing Test for the Case-Insensitive search Function
+- 大文字・小文字を区別しない検索のために，`search_case_insensitive`関数を新たに追加する
+- TDD（テスト駆動開発）したいので失敗するテストを書くところからスタート
+- 以下，今回のテスト
+```rs
+// src/lib.rs
+#[cfg(test)]
+mod test {
+    use super::*;
+
+    #[test]
+    fn case_sensitive() {
+        let query = "duct";
+        let contents = "\
+Rust:
+safe, fast, productive.
+Pick three.
+Duct tape.";
+
+        assert_eq!(
+            vec!["safe, fast, productive."],
+            search(query, contents)
+        );
+    }
+
+    #[test]
+    fn case_insensitive() {
+        let query = "rUsT";
+        let contents = "\
+Rust:
+safe, fast, productive.
+Pick three.
+Trust me.";
+
+        assert_eq!(
+            vec!["Rust:", "Trust me."],
+            search_case_insensitive(query, contents)
+        );
+    }
+}
+```
+- ポイント
+    - `case_sensitive`
+        - `one_result`の名前を変えて大文字・小文字の区別ができているかテストできるようにしたもの
+        - クエリ`duct`に対して`Duct tape`を用意
+    - `case_insensitive`
+        - 大文字・小文字を区別しない検索のテスト
+        - クエリに`rUsT`を設定
+        - 正しい`search_case_insensitive`関数なら，「Rust」，「Trust me.」がマッチするはず
+
+- `search_case_insensitive`関数の実装は以下
+```rs
+// src/lib.rs
+pub fn search_case_insensitive<'a>(query: &str, contents: &'a str) -> Vec<&'a str> {
+    let query = query.to_lowercase();
+    let mut results = Vec::new();
+
+    for line in contents.lines() {
+        if line.to_lowercase().contains(&query) {
+            results.push(line);
+        }
+    }
+
+    results
+}
+```
+- ポイント
+    - 文字列を`to_lowercase`メソッドで小文字化
+    - 同じく`to_lowercase`で小文字化した検索対象の文字列から検索を行う
+    - `to_lowercase`メソッドの結果は`String`になるので注意
+        - `contains`メソッドは文字列スライスを受け取るので，`&`をつけて渡す必要がある
+
+- `run`関数から`search_case_insensitive`関数を呼び出せるようにする
+```rs
+pub struct Config {
+    pub query: String,
+    pub filename: String,
+    pub case_sensitive: bool,
+}
+
+pub fn run(config: Config) -> Result<(), Box<Error>> {
+    let mut f = File::open(config.filename)?;
+
+    let mut contents = String::new();
+    f.read_to_string(&mut contents)?;
+
+    let results = if config.case_sensitive {
+        search(&config.query, &contents)
+    } else {
+        search_case_insensitive(&config.query, &contents)
+    };
+
+    for line in results {
+        println!("{}", line);
+    }
+
+    Ok(())
+}
+```
+- ポイント
+    - `Config`構造体
+        - 大文字・小文字を区別する/しないのフラグ`case_sensitive`を追加
+    - `run`関数
+        - `case_sensitive`がtrueなら`search`関数を，falseなら`search_case_insensitive`関数を呼び出す様にした
+
+- `Config`構造体のコンストラクタで，環境変数を確認して`case_sensitive`フラグの値を決定する
+```rs
+// src/lib.rs
+use std::env;
+
+// --snip--
+
+impl Config {
+    pub fn new(args: &[String]) -> Result<Config, &'static str> {
+        if args.len() < 3 {
+            return Err("not enough arguments");
+        }
+
+        let query = args[1].clone();
+        let filename = args[2].clone();
+
+        let case_sensitive = env::var("CASE_INSENSITIVE").is_err();
+
+        Ok(Config { query, filename, case_sensitive })
+    }
+}
+```
+- ポイント
+    - `env`モジュール内の関数でで環境変数を扱う
+        - `var`関数を使用して，`CASE_INSENSITIVE`という環境変数のチェックを行う
+    - `is_err`メソッドは`CASE_INSENSITIVE`に何かセットされていた時にfalseを返す
+        - `CASE_INSENSITIVE`に値がセットさせれている場合のみ大文字・小文字を無視した検索になる
+
+- 実行
+```
+$ CASE_INSENSITIVE=1 cargo run to poem.txt
+    Finished dev [unoptimized + debuginfo] target(s) in 0.70s
+     Running `target/debug/minigrep to poem.txt`
+Are you nobody, too?
+How dreary to be somebody!
+To tell your name the livelong day
+To an admiring bog!
+```
+- 環境変数を指定することで，大文字・小文字を無視した検索になっている
 
 ## 12.6 Writing Error Messages to Standard Error Instead of Standard Output
+- エラーメッセージを標準エラー出力(stderr)を用いて出力したい
+    - 現在は`println!`を用いて標準出力(stdout)に出力してるだけ
+    - エラーメッセージとそうでないものを分けたい
+#### Checking Where Errors Are Written
+- `minigrep`をエラーが起こる＆結果がファイルにリダイレクトされるように実行する
+    - エラー内容：引数を指定しない
+```
+$ cargo run > output.txt
+```
+- リダイレクトによって，エラーメッセージがファイルに出力される
+
+#### Printing Errors to Standard Error
+```rs
+//src/main.rs
+fn main() {
+    let args: Vec<String> = env::args().collect();
+
+    let config = Config::new(&args).unwrap_or_else(|err| {
+        eprintln!("Problem parsing arguments: {}", err);
+        process::exit(1);
+    });
+
+    if let Err(e) = minigrep::run(config) {
+        eprintln!("Application error: {}", e);
+
+        process::exit(1);
+    }
+}
+```
+- ポイント
+    - エラーメッセージの出力に`println!`の代わりに`eprintln!`を使用
+    - `eprintln!`は標準エラーストリームに出力できる
+
+- エラーが起こる＆結果がファイルにリダイレクトされるように実行する
+```
+$ cargo run > output.txt
+   Compiling minigrep v0.1.0 (/home/mizouchi/GitRepositories/Rust_study/projects/Chapter12/minigrep)
+    Finished dev [unoptimized + debuginfo] target(s) in 0.49s
+     Running `target/debug/minigrep`
+Problem parsing arguments: not enough arguments
+```
+- リダイレクト先のファイル`output.txt`には何も書かれておらず(エラーで止まったため)，画面にエラーメッセージが出力された
 
 ## Summary
