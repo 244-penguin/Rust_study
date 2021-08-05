@@ -674,5 +674,3 @@ $ cargo run > output.txt
 Problem parsing arguments: not enough arguments
 ```
 - リダイレクト先のファイル`output.txt`には何も書かれておらず(エラーで止まったため)，画面にエラーメッセージが出力された
-
-## Summary
