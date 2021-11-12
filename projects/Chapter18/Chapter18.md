@@ -1,6 +1,6 @@
 # Chapter18: パターンとマッチング
 
-- データの型や値に対してマッチングを行い特定のコードを実行するか決める
+- データの持つパターン対してマッチングを行い特定のコードを実行するか決める
     - match式
     - 関数の引数　等
 - 18.1: Rustでパターンが使われるケースを紹介
@@ -30,6 +30,35 @@ match some_u8_value {
 }
 ```
 ### if let
+- `if let`式は1つのパターンにしかマッチしない`match`式のようなもの
+- `else if let`等を混ぜることでより複雑な条件にマッチさせることができる
+```rs
+fn main() {
+    let favorite_color: Option<&str> = None;
+    let is_tuesday = false;
+    let age: Result<u8, _> = "34".parse();
+
+    if let Some(color) = favorite_color {
+        // あなたのお気に入りの色、{}を背景色に使用します
+        println!("Using your favorite color, {}, as the background", color);
+    } else if is_tuesday {
+        // 火曜日は緑の日！
+        println!("Tuesday is green day!");
+    } else if let Ok(age) = age {
+        if age > 30 {
+            // 紫を背景色に使用します
+            println!("Using purple as the background color");
+        } else {
+            // オレンジを背景色に使用します
+            println!("Using orange as the background color");
+        }
+    } else {
+        // 青を背景色に使用します
+        println!("Using blue as the background color");
+    }
+}
+```
+- `else if let Ok(age) = age`で`Ok(age)`にシャドーイングされるが，波括弧の中でしか有効にならない
 - `.parse()`は文字列を数値に変換する
 - `Ok()`はオペレーションが成功したことを意味する
 - `Option<T>`は値が 存在しない 可能性を暗示する列挙型
@@ -54,6 +83,8 @@ while let Some(top) = stack.pop() {
 ```
 
 ### forループ
+
+- `for x in y`では、`x`がパターン
 
 ```rs
 let v = vec!['a', 'b', 'c'];
@@ -81,8 +112,7 @@ let (x, y) = (1, 2, 3);
 - 下記の例では，xはi32の値一つにマッチする
 ```rs
 fn foo(x: i32) {
-    // コードがここに来る
-    // code goes here
+    ．．．
 }
 ```
 
